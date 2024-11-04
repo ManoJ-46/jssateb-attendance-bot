@@ -3,8 +3,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
 import time
 import logging
 
@@ -26,17 +24,12 @@ def check_login_and_get_attendance(user_type, username, password):
 
     logger.info("Setting up Chrome options")
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--ignore-certificate-errors')
-    options.add_argument('--ignore-ssl-errors')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920,1080')
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_experimental_option("androidPackage", "org.chromium.chrome.stable")
 
     logger.info("Initializing Chrome driver")
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=options)
+    driver = webdriver.Chrome(options=options)
     driver.set_page_load_timeout(30)
 
     try:
@@ -109,3 +102,8 @@ def check_login_and_get_attendance(user_type, username, password):
     finally:
         logger.info("Closing Chrome driver")
         driver.quit()
+
+# Example usage
+if __name__ == "__main__":
+    result = check_login_and_get_attendance("Student", "your_username", "your_password")
+    print(result)
