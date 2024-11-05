@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 USER_TYPE, USERNAME, PASSWORD = range(3)
 
 # Updated token (replace with your bot token)
-TOKEN = '7391510808:AAHOPfdVOMg5d799Pi7Ig50VcSw5K5sRX1k'
+TOKEN = ''
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     reply_keyboard = [['Student', 'Parent', 'Staff']]
