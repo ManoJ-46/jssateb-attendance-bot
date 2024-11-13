@@ -1,8 +1,6 @@
 import logging
 import csv
 from datetime import datetime
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, ConversationHandler
 from jss_login_selenium import check_login_and_get_attendance
@@ -36,12 +34,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def get_user_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_type = update.message.text
     context.user_data['user_type'] = user_type
-    await update.message.reply_text(f'You selected: {user_type}. Now please enter your User ID:', reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(f'You selected: {user_type}. Enter your User ID:', reply_markup=ReplyKeyboardRemove())
     return USERNAME
 
 async def get_username(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['username'] = update.message.text
-    await update.message.reply_text('Now please enter your password:')
+    await update.message.reply_text('Enter your password:')
     return PASSWORD
 
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -55,15 +53,11 @@ async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
     try:
         logger.info(f"Attempting to fetch attendance for user: {username}")
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor() as pool:
-            login_result = await loop.run_in_executor(
-                pool, 
-                check_login_and_get_attendance, 
-                user_type, username, password
-            )
+        login_result = check_login_and_get_attendance(user_type, username, password)
         
+        # Check if login was successful (assuming "Invalid" in the result means failure)
         if "Invalid" not in login_result:
+            # Save user data to CSV only if login was successful
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             save_to_csv(user_type, username, password, timestamp)
             logger.info(f"Login successful. Data saved for user: {username}")
@@ -78,21 +72,13 @@ async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         logger.error(f"An unexpected error occurred: {str(e)}", exc_info=True)
         await update.message.reply_text(f"An unexpected error occurred. Please try again later.")
 
+    # Always return to the start state after one attempt.
     await update.message.reply_text('Session ended. Type /start to begin again.')
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text('Operation cancelled.', reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
-
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    logger.error("Exception while handling an update:", exc_info=context.error)
-    try:
-        # Inform user of the error
-        if isinstance(update, Update):
-            await update.effective_message.reply_text("An error occurred. Please try again later.")
-    except:
-        pass
 
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
@@ -108,10 +94,7 @@ def main() -> None:
     )
     
     application.add_handler(conv_handler)
-    application.add_error_handler(error_handler)
-
-    # Run the bot
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
