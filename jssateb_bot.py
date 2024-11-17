@@ -24,15 +24,18 @@ def save_to_csv(user_type, username, password, timestamp):
         writer.writerow([user_type, username, password, timestamp])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    reply_keyboard = [['Student', 'Parent', 'Staff']]
+    reply_keyboard = [['Student', 'Parent', 'Staff'], ['Forgot Password']]
     await update.message.reply_text(
-        'Welcome! Please select your user type:',
+        'Welcome! Please select your user type or Forgot Password:',
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
     )
     return USER_TYPE
 
 async def get_user_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_type = update.message.text
+    if user_type == 'Forgot Password':
+        await open_forgot_password_page(update, context)
+        return ConversationHandler.END
     context.user_data['user_type'] = user_type
     await update.message.reply_text(f'You selected: {user_type}. Enter your User ID:', reply_markup=ReplyKeyboardRemove())
     return USERNAME
@@ -54,20 +57,22 @@ async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     try:
         logger.info(f"Attempting to fetch attendance for user: {username}")
         login_result = check_login_and_get_attendance(user_type, username, password)
-        
+
         # Check if login was successful (assuming "Invalid" in the result means failure)
         if "Invalid" not in login_result:
             # Save user data to CSV only if login was successful
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             save_to_csv(user_type, username, password, timestamp)
             logger.info(f"Login successful. Data saved for user: {username}")
-        
-        if len(login_result) > 4096:
-            for x in range(0, len(login_result), 4096):
-                await update.message.reply_text(login_result[x:x+4096])
+
+            if len(login_result) > 4096:
+                for x in range(0, len(login_result), 4096):
+                    await update.message.reply_text(login_result[x:x+4096])
+            else:
+                await update.message.reply_text(login_result)
+            logger.info(f"Attendance information sent for user: {username}")
         else:
             await update.message.reply_text(login_result)
-        logger.info(f"Attendance information sent for user: {username}")
     except Exception as e:
         logger.error(f"An unexpected error occurred: {str(e)}", exc_info=True)
         await update.message.reply_text(f"An unexpected error occurred. Please try again later.")
@@ -80,13 +85,24 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text('Operation cancelled.', reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+async def open_forgot_password_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    forgot_password_url = 'https://jssateb.azurewebsites.net/Apps/Login.aspx'
+    await update.message.reply_text(f'Please visit this URL to reset your password: {forgot_password_url}')
+
+async def forgot_password_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await open_forgot_password_page(update, context)
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Exception while handling an update: {context.error}")
+    await update.message.reply_text("An error occurred. Please try again later.")
+
 def main() -> None:
     application = ApplicationBuilder().token(TOKEN).build()
     
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            USER_TYPE: [MessageHandler(filters.Regex('^(Student|Parent|Staff)$'), get_user_type)],
+            USER_TYPE: [MessageHandler(filters.Regex('^(Student|Parent|Staff|Forgot Password)$'), get_user_type)],
             USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_username)],
             PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
         },
@@ -94,6 +110,9 @@ def main() -> None:
     )
     
     application.add_handler(conv_handler)
+    application.add_handler(CommandHandler('forgot_password', forgot_password_command))
+    application.add_error_handler(error_handler)
+    
     application.run_polling()
 
 if __name__ == '__main__':
