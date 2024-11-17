@@ -16,7 +16,7 @@ def check_login_and_get_attendance(user_type, username, password):
 
     logger.info("Setting up Chrome options")
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
+    #options.add_argument('--headless')
     options.add_argument('--ignore-certificate-errors')
     options.add_argument('--ignore-ssl-errors')
     options.add_argument('--no-sandbox')
